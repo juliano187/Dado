@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lançador de Dados 3D</title>
+<style>
+  :root{
+    --bg-1:#0b0d16;
+    --bg-2:#141827;
+    --accent-1:#7c5cff;
+    --accent-2:#22d3ee;
+    --accent-3:#ff5c9e;
+    --die-face:#1b1f2e;
+    --die-edge:#0a0c14;
+    --pip:#eef1fb;
+    --text-dim:#8b93b3;
+    --glass-border:rgba(255,255,255,.08);
+  }
+
+  *{box-sizing:border-box;}
+
+  html,body{
+    height:100%;
+    margin:0;
+  }
+
+  body{
+    min-height:100vh;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-family:'Segoe UI',system-ui,-apple-system,sans-serif;
+    background:
+      radial-gradient(circle at 15% 20%, rgba(124,92,255,.20), transparent 45%),
+      radial-gradient(circle at 85% 15%, rgba(34,211,238,.16), transparent 40%),
+      radial-gradient(circle at 50% 90%, rgba(255,92,158,.12), transparent 45%),
+      linear-gradient(160deg, var(--bg-1), var(--bg-2));
+    color:#fff;
+    overflow-x:hidden;
+    padding:24px;
+  }
+
+  .stage{
+    position:relative;
+    width:min(92vw, 460px);
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:28px;
+  }
+
+  .panel{
+    width:100%;
+    background:rgba(255,255,255,.045);
+    border:1px solid var(--glass-border);
+    border-radius:28px;
+    padding:40px 28px 32px;
+    backdrop-filter:blur(18px);
+    -webkit-backdrop-filter:blur(18px);
+    box-shadow:
+      0 25px 60px -20px rgba(0,0,0,.65),
+      inset 0 1px 0 rgba(255,255,255,.06);
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:26px;
+    position:relative;
+  }
+
+  .eyebrow{
+    font-size:13px;
+    letter-spacing:.4px;
+    color:var(--text-dim);
+    text-align:center;
+  }
+
+  h1{
+    margin:0;
+    font-size:26px;
+    font-weight:600;
+    text-align:center;
+    background:linear-gradient(100deg,var(--accent-2),var(--accent-1) 55%,var(--accent-3));
+    -webkit-background-clip:text;
+    background-clip:text;
+    color:transparent;
+  }
+
+  /* ---------- 3D DICE ---------- */
+  .scene{
+    width:150px;
+    height:150px;
+    perspective:900px;
+    margin:10px 0 4px;
+    cursor:pointer;
+    -webkit-tap-highlight-color:transparent;
+  }
+
+  .cube{
+    width:100%;
+    height:100%;
+    position:relative;
+    transform-style:preserve-3d;
+    transition:transform 1.1s cubic-bezier(.2,.85,.25,1.05);
+    transform:rotateX(-24deg) rotateY(35deg);
+  }
+
+  .cube.rolling{
+    transition:transform 1.05s cubic-bezier(.36,.02,.31,1);
+  }
+
+  .face{
+    position:absolute;
+    width:150px;
+    height:150px;
+    border-radius:22px;
+    background:
+      linear-gradient(155deg, #262c42, #14172470);
+    background-color:var(--die-face);
+    border:1px solid rgba(255,255,255,.08);
+    display:grid;
+    grid-template-columns:repeat(3,1fr);
+    grid-template-rows:repeat(3,1fr);
+    padding:22px;
+    box-shadow:inset 0 0 18px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.08);
+  }
+
+  .pip{
+    width:20px;
+    height:20px;
+    border-radius:50%;
+    background:radial-gradient(circle at 35% 30%, #ffffff, var(--pip) 55%, #cfd4ee 100%);
+    box-shadow:0 0 10px rgba(255,255,255,.55), 0 2px 4px rgba(0,0,0,.4);
+    align-self:center;
+    justify-self:center;
+    opacity:1;
+  }
+
+  /* pip grid positions (row/col) */
+  .p1{grid-area:2/2;}
+  .p2{grid-area:1/1;}
+  .p3{grid-area:1/3;}
+  .p4{grid-area:2/1;}
+  .p5{grid-area:2/3;}
+  .p6{grid-area:3/1;}
+  .p7{grid-area:3/3;}
+  .p8{grid-area:1/2;}
+  .p9{grid-area:3/2;}
+
+  .face--front { transform: translateZ(75px); }
+  .face--back  { transform: rotateY(180deg) translateZ(75px); }
+  .face--right { transform: rotateY(90deg) translateZ(75px); }
+  .face--left  { transform: rotateY(-90deg) translateZ(75px); }
+  .face--top   { transform: rotateX(90deg) translateZ(75px); }
+  .face--bottom{ transform: rotateX(-90deg) translateZ(75px); }
+
+  .glow-ring{
+    position:absolute;
+    inset:-18px;
+    border-radius:50%;
+    pointer-events:none;
+    background:radial-gradient(circle, rgba(124,92,255,.55), transparent 65%);
+    opacity:0;
+    transform:scale(.6);
+    filter:blur(6px);
+  }
+  .glow-ring.pulse{
+    animation:pulseGlow .7s ease-out;
+  }
+  @keyframes pulseGlow{
+    0%{opacity:.9; transform:scale(.5);}
+    60%{opacity:.55; transform:scale(1.25);}
+    100%{opacity:0; transform:scale(1.5);}
+  }
+
+  .particles{
+    position:absolute;
+    inset:0;
+    pointer-events:none;
+    overflow:visible;
+  }
+  .particle{
+    position:absolute;
+    top:50%;
+    left:50%;
+    width:6px;
+    height:6px;
+    border-radius:50%;
+    background:var(--accent-2);
+    opacity:0;
+  }
+  .particle.fire{
+    animation:fly .9s ease-out forwards;
+  }
+  @keyframes fly{
+    0%{opacity:1; transform:translate(-50%,-50%) scale(1);}
+    100%{opacity:0; transform:translate(var(--dx),var(--dy)) scale(.2);}
+  }
+
+  .result-line{
+    display:flex;
+    align-items:baseline;
+    gap:8px;
+    min-height:34px;
+  }
+  .result-number{
+    font-size:34px;
+    font-weight:700;
+    background:linear-gradient(100deg,var(--accent-2),var(--accent-1));
+    -webkit-background-clip:text;
+    background-clip:text;
+    color:transparent;
+    transition:opacity .25s;
+  }
+  .result-label{
+    font-size:13px;
+    color:var(--text-dim);
+  }
+
+  button.roll-btn{
+    appearance:none;
+    border:none;
+    cursor:pointer;
+    padding:14px 34px;
+    border-radius:16px;
+    font-size:15px;
+    font-weight:600;
+    color:#0b0d16;
+    background:linear-gradient(100deg,var(--accent-2),var(--accent-1));
+    box-shadow:0 12px 30px -10px rgba(124,92,255,.55);
+    transition:transform .15s ease, box-shadow .15s ease, filter .15s ease;
+    letter-spacing:.2px;
+  }
+  button.roll-btn:hover{
+    transform:translateY(-2px);
+    box-shadow:0 16px 36px -10px rgba(124,92,255,.7);
+  }
+  button.roll-btn:active{
+    transform:translateY(0px) scale(.97);
+  }
+  button.roll-btn:disabled{
+    filter:grayscale(.4) brightness(.8);
+    cursor:default;
+    transform:none;
+  }
+
+  .history{
+    width:100%;
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+    align-items:center;
+  }
+  .history-label{
+    font-size:12px;
+    color:var(--text-dim);
+  }
+  .history-row{
+    display:flex;
+    gap:8px;
+    flex-wrap:wrap;
+    justify-content:center;
+    min-height:34px;
+  }
+  .tag{
+    width:32px;
+    height:32px;
+    border-radius:10px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-size:14px;
+    font-weight:600;
+    background:rgba(255,255,255,.06);
+    border:1px solid var(--glass-border);
+    color:#dfe3f5;
+    animation:tagIn .35s cubic-bezier(.2,.9,.3,1.2);
+  }
+  @keyframes tagIn{
+    0%{opacity:0; transform:translateY(8px) scale(.7);}
+    100%{opacity:1; transform:translateY(0) scale(1);}
+  }
+  .tag.newest{
+    background:linear-gradient(100deg,var(--accent-2),var(--accent-1));
+    color:#0b0d16;
+    box-shadow:0 6px 16px -6px rgba(124,92,255,.7);
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    .cube{transition:none;}
+    .tag{animation:none;}
+    .particle.fire{animation:none; display:none;}
+  }
+
+  @media (max-width:380px){
+    .scene{width:130px;height:130px;}
+    .face{width:130px;height:130px;}
+    .face--front,.face--back,.face--right,.face--left,.face--top,.face--bottom{
+      transform:translateZ(65px);
+    }
+    .face--back{transform:rotateY(180deg) translateZ(65px);}
+    .face--right{transform:rotateY(90deg) translateZ(65px);}
+    .face--left{transform:rotateY(-90deg) translateZ(65px);}
+    .face--top{transform:rotateX(90deg) translateZ(65px);}
+    .face--bottom{transform:rotateX(-90deg) translateZ(65px);}
+  }
+</style>
+</head>
+<body>
+
+<div class="stage">
+  <div class="panel">
+    <div class="eyebrow">sorteador de dados</div>
+    <h1>Lançador de Dados 3D</h1>
+
+    <div class="scene" id="scene" role="button" tabindex="0" aria-label="Clique para lançar o dado">
+      <div class="glow-ring" id="glowRing"></div>
+      <div class="particles" id="particles"></div>
+      <div class="cube" id="cube">
+        <div class="face face--front">
+          <span class="pip p1"></span>
+        </div>
+        <div class="face face--back">
+          <span class="pip p2"></span><span class="pip p4"></span><span class="pip p6"></span>
+          <span class="pip p3"></span><span class="pip p5"></span><span class="pip p7"></span>
+        </div>
+        <div class="face face--right">
+          <span class="pip p2"></span><span class="pip p7"></span>
+        </div>
+        <div class="face face--left">
+          <span class="pip p2"></span><span class="pip p3"></span><span class="pip p1"></span><span class="pip p6"></span><span class="pip p7"></span>
+        </div>
+        <div class="face face--top">
+          <span class="pip p2"></span><span class="pip p1"></span><span class="pip p7"></span>
+        </div>
+        <div class="face face--bottom">
+          <span class="pip p2"></span><span class="pip p3"></span><span class="pip p6"></span><span class="pip p7"></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="result-line">
+      <span class="result-number" id="resultNumber">–</span>
+      <span class="result-label">número sorteado</span>
+    </div>
+
+    <button class="roll-btn" id="rollBtn">Lançar dado</button>
+
+    <div class="history">
+      <div class="history-label">últimos lançamentos</div>
+      <div class="history-row" id="historyRow"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  const scene = document.getElementById('scene');
+  const cube = document.getElementById('cube');
+  const rollBtn = document.getElementById('rollBtn');
+  const resultNumber = document.getElementById('resultNumber');
+  const historyRow = document.getElementById('historyRow');
+  const glowRing = document.getElementById('glowRing');
+  const particlesWrap = document.getElementById('particles');
+
+  // Base resting rotations that show face 1..6 to the viewer, matching pip layout above.
+  // front=1, right=2, top=3, bottom=4, left=5, back=6
+  const FACE_ROTATIONS = {
+    1: { x: 0,   y: 0   },
+    2: { x: 0,   y: -90 },
+    3: { x: -90, y: 0   },
+    4: { x: 90,  y: 0   },
+    5: { x: 0,   y: 90  },
+    6: { x: 0,   y: 180 }
+  };
+
+  let currentX = -24, currentY = 35; // initial idle pose
+  let rolling = false;
+  const history = [];
+  const MAX_HISTORY = 8;
+
+  function randomFace(){
+    return 1 + Math.floor(Math.random() * 6);
+  }
+
+  function spawnParticles(){
+    particlesWrap.innerHTML = '';
+    const colors = ['#22d3ee', '#7c5cff', '#ff5c9e', '#eef1fb'];
+    const count = 16;
+    for(let i=0;i<count;i++){
+      const p = document.createElement('span');
+      p.className = 'particle';
+      const angle = (Math.PI * 2 * i) / count + Math.random()*0.3;
+      const dist = 60 + Math.random()*50;
+      const dx = Math.cos(angle) * dist;
+      const dy = Math.sin(angle) * dist;
+      p.style.setProperty('--dx', dx.toFixed(1) + 'px');
+      p.style.setProperty('--dy', dy.toFixed(1) + 'px');
+      p.style.background = colors[i % colors.length];
+      particlesWrap.appendChild(p);
+      // trigger animation
+      requestAnimationFrame(()=> p.classList.add('fire'));
+    }
+    setTimeout(()=>{ particlesWrap.innerHTML = ''; }, 950);
+  }
+
+  function pulseGlow(){
+    glowRing.classList.remove('pulse');
+    void glowRing.offsetWidth; // restart animation
+    glowRing.classList.add('pulse');
+  }
+
+  function addHistory(value){
+    history.unshift(value);
+    if(history.length > MAX_HISTORY) history.pop();
+    renderHistory();
+  }
+
+  function renderHistory(){
+    historyRow.innerHTML = '';
+    history.forEach((val, idx)=>{
+      const tag = document.createElement('div');
+      tag.className = 'tag' + (idx === 0 ? ' newest' : '');
+      tag.textContent = val;
+      historyRow.appendChild(tag);
+    });
+  }
+
+  function rollDice(){
+    if(rolling) return;
+    rolling = true;
+    rollBtn.disabled = true;
+    resultNumber.style.opacity = '0.25';
+
+    const finalFace = randomFace();
+    const target = FACE_ROTATIONS[finalFace];
+
+    // Add extra full spins for a fluid "tumbling" feel, always landing on target + multiples of 360.
+    const extraSpinsX = 360 * (2 + Math.floor(Math.random()*2));
+    const extraSpinsY = 360 * (3 + Math.floor(Math.random()*2));
+
+    currentX += extraSpinsX;
+    currentY += extraSpinsY;
+
+    // Normalize final visible angle to the target face while keeping accumulated spins
+    const normX = ((currentX % 360) + 360) % 360;
+    const normY = ((currentY % 360) + 360) % 360;
+    const diffX = (((target.x - normX) % 360) + 360) % 360;
+    const diffY = (((target.y - normY) % 360) + 360) % 360;
+
+    currentX += diffX;
+    currentY += diffY;
+
+    cube.classList.add('rolling');
+    cube.style.transform = `rotateX(${currentX}deg) rotateY(${currentY}deg)`;
+
+    setTimeout(()=>{
+      cube.classList.remove('rolling');
+      resultNumber.style.opacity = '1';
+      resultNumber.textContent = finalFace;
+      addHistory(finalFace);
+      pulseGlow();
+      spawnParticles();
+      rolling = false;
+      rollBtn.disabled = false;
+    }, 1120);
+  }
+
+  rollBtn.addEventListener('click', rollDice);
+  scene.addEventListener('click', rollDice);
+  scene.addEventListener('keydown', (e)=>{
+    if(e.key === 'Enter' || e.key === ' '){
+      e.preventDefault();
+      rollDice();
+    }
+  });
+
+})();
+</script>
+
+</body>
+</html>
